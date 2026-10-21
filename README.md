@@ -5,9 +5,9 @@ Extensão que detecta os vídeos carregados pela página e os baixa.
 ## Recursos
 
 - Download de arquivos direto
-- Junta áudio e vídeo separados em um único `.mp4` (ffmpeg.wasm, sem recodificar)
-- Escolha da pasta de destino (File System Access API)
-- Se a junção falhar, salva os arquivos separados
+- Junta áudio e vídeo separados em um único `.mp4`.
+- Escolha da pasta de destino.
+- Se a junção falhar, salva os arquivos separados.
 
 ## Limitações
 
