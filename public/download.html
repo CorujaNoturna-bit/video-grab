@@ -1,0 +1,22 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Video Grabber - Download</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+      progress { width: 100%; height: 20px; }
+      #status { margin: 12px 0; word-break: break-all; }
+      #actions button { padding: 8px 14px; margin: 8px 0; }
+      #error { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <h2>Video Grabber</h2>
+    <div id="status">Iniciando...</div>
+    <div id="actions"></div>
+    <progress id="bar" value="0" max="1"></progress>
+    <div id="error"></div>
+    <script src="download.js"></script>
+  </body>
+</html>

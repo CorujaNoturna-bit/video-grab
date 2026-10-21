@@ -1,0 +1,28 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Video Grabber - Configurações</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; }
+      button { margin-right: 8px; padding: 6px 12px; }
+      #current { margin: 16px 0; font-weight: 600; }
+      #msg { color: #b00020; margin-top: 12px; }
+      small { color: #555; }
+    </style>
+  </head>
+  <body>
+    <h2>Video Grabber - Configurações</h2>
+    <div id="current">Carregando...</div>
+    <button id="pick">Escolher pasta</button>
+    <button id="clear">Usar pasta Downloads</button>
+    <div id="msg"></div>
+    <p>
+      <small>
+        Escolha uma subpasta (ex.: D:\Videos). O navegador pode recusar pastas do sistema,
+        como Downloads, Documentos ou a raiz do disco.
+      </small>
+    </p>
+    <script src="options.js"></script>
+  </body>
+</html>
