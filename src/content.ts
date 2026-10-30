@@ -2,6 +2,11 @@
 
 function describe(v: HTMLVideoElement): VideoInfo {
   const src = v.currentSrc || v.src || v.querySelector("source")?.src || "";
+  const r = v.getBoundingClientRect();
+  const cy = r.top + r.height / 2;
+  const cx = r.left + r.width / 2;
+  const inView = r.width > 0 && r.height > 0 && cy >= 0 && cy <= window.innerHeight && cx >= 0 && cx <= window.innerWidth;
+
   return {
     src,
     kind: src.startsWith("blob:") ? "blob" : src ? "direct" : "none",
@@ -10,6 +15,8 @@ function describe(v: HTMLVideoElement): VideoInfo {
     height: v.videoHeight,
     poster: v.poster,
     frameUrl: location.href,
+    playing: !v.paused && !v.ended,
+    inView,
   };
 }
 
@@ -41,7 +48,10 @@ new MutationObserver(schedule).observe(document.documentElement, {
 });
 
 // eventos de mídia não "borbulham", então usamos captura
-document.addEventListener("loadedmetadata", schedule, true);
-document.addEventListener("durationchange", schedule, true);
+for (const ev of ["loadedmetadata", "durationchange", "play", "playing", "pause", "ended"]) {
+  document.addEventListener(ev, schedule, true);
+}
+window.addEventListener("scroll", schedule, { passive: true, capture: true });
+window.addEventListener("resize", schedule, { passive: true });
 
 scan();
