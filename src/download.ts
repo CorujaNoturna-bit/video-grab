@@ -134,7 +134,7 @@ async function fetchRetry(url: string, as: "text" | "buffer") {
   let lastErr: unknown;
   for (let i = 0; i < RETRIES; i++) {
     try {
-      const r = await fetch(url);
+      const r = await fetch(url, { credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return as === "text" ? await r.text() : await r.arrayBuffer();
     } catch (e) {
@@ -152,7 +152,6 @@ interface Master {
   audio: string | null;
 }
 
-// escolhe a melhor variante de vídeo e o áudio ligado a ela (AUDIO="grupo")
 function parseMaster(text: string, base: string): Master {
   const lines = text.split(/\r?\n/);
 
@@ -202,7 +201,6 @@ function parseMedia(text: string, base: string) {
 
 const isFmp4 = (init: string | null, segments: string[]) => !!init || /\.(m4s|mp4|m4a)(\?|$)/i.test(segments[0]);
 
-// baixa em paralelo, mas grava sempre na ordem certa
 async function pump(urls: string[], sink: Sink, label = "segmentos") {
   const buf = new Map<number, ArrayBuffer>();
   let next = 0;
@@ -254,7 +252,6 @@ async function pump(urls: string[], sink: Sink, label = "segmentos") {
   await chain;
 }
 
-// baixa uma playlist de mídia inteira para a memória
 async function collect(playlistUrl: string, label: string): Promise<Part> {
   const text = (await fetchRetry(playlistUrl, "text")) as string;
   const { init, segments } = parseMedia(text, playlistUrl);
@@ -318,7 +315,7 @@ async function downloadMuxed(videoUrl: string, audioUrl: string, name: string, d
   const v = await collect(videoUrl, "vídeo");
   const a = await collect(audioUrl, "áudio");
 
-  barEl.removeAttribute("value"); // barra indeterminada
+  barEl.removeAttribute("value");
   statusEl.textContent = "Carregando ffmpeg...";
 
   try {
@@ -355,7 +352,6 @@ async function downloadHls(url: string, dir: PermDir | null) {
     text = (await fetchRetry(playlistUrl, "text")) as string;
   }
 
-  // vídeo e áudio em playlists separadas: baixa os dois e junta
   if (audioUrl) {
     await downloadMuxed(playlistUrl, audioUrl, `${baseName(url)}.mp4`, dir);
     return;
@@ -382,19 +378,13 @@ async function downloadHls(url: string, dir: PermDir | null) {
 // ---------- arquivo direto ----------
 
 async function downloadFile(url: string, name: string, dir: PermDir | null) {
-  if (!dir) {
-    await chrome.downloads.download({ url, filename: name });
-    statusEl.textContent = `Download iniciado: ${name}. Pode fechar esta aba.`;
-    return;
-  }
-
   statusEl.textContent = "Conectando...";
-  const r = await fetch(url);
+  const r = await fetch(url, { credentials: "include" });
   if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
   const total = Number(r.headers.get("content-length")) || 0;
   if (total) barEl.max = total;
 
-  const sink = await openSink(dir, name, "");
+  const sink = await openSink(dir, name, "video/mp4");
   try {
     const reader = r.body.getReader();
     for (;;) {
@@ -416,7 +406,7 @@ async function downloadFile(url: string, name: string, dir: PermDir | null) {
 // ---------- juntar dois arquivos diretos (ex.: Facebook) ----------
 
 async function fetchWhole(url: string, label: string): Promise<Part> {
-  const r = await fetch(url);
+  const r = await fetch(url, { credentials: "include" });
   if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
   const total = Number(r.headers.get("content-length")) || 0;
   barEl.max = total || 1;
@@ -489,5 +479,3 @@ main().catch((e) => {
   errorEl.textContent = "Erro: " + (e as Error).message;
   statusEl.textContent = "Falhou.";
 });
-
-

@@ -3,7 +3,13 @@
   "name": "Video Grabber",
   "version": "0.3.0",
   "description": "Baixa vídeos da página atual.",
-  "permissions": ["activeTab", "downloads", "storage", "webRequest"],
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage",
+    "webRequest",
+    "declarativeNetRequest"
+  ],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html" },

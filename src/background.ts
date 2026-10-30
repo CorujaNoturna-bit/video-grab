@@ -6,7 +6,7 @@ type MediaMap = Record<string, MediaInfo>;
 const vKey = (tabId: number) => `videos:${tabId}`;
 const mKey = (tabId: number) => `media:${tabId}`;
 const MAX_MEDIA_PER_TAB = 50;
-const MIN_FILE_SIZE = 100_000; // ignora arquivos pequenos (segmentos, previews)
+const MIN_FILE_SIZE = 20_000; // ignora arquivos pequenos (segmentos, previews)
 
 // fila para evitar corrida de leitura/escrita no storage
 let queue: Promise<void> = Promise.resolve();
@@ -39,15 +39,41 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   });
 });
 
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    const url = details.url;
+    const isTikTokVideo = 
+      (url.includes('tiktokcdn.com') || url.includes('byteoversea.com')) &&
+      (url.includes('/video/') || url.includes('.mp4') || details.type === 'media');
+
+    if (isTikTokVideo && details.tabId >= 0) {
+      console.log('[VideoGrab] Vídeo TikTok interceptado:', url);
+
+      // Aqui você envia a URL para o seu store local ou avisa o popup
+      // Exemplo:
+      // store.addVideo(details.tabId, { url, type: 'mp4', source: 'tiktok' });
+    }
+  },
+  { urls: ['*://*.tiktok.com/*', '*://*.tiktokcdn.com/*', '*://*.byteoversea.com/*'] }
+);
+
 // --- mídia detectada na rede ---
 function classify(url: string, mime: string): MediaKind | null {
   const m = mime.toLowerCase();
   const path = new URL(url).pathname.toLowerCase();
+  
   if (m.includes("mpegurl") || path.endsWith(".m3u8")) return "hls";
   if (m.includes("dash+xml") || path.endsWith(".mpd")) return "dash";
-  if (m === "video/mp2t" || path.endsWith(".m4s")) return null; // segmentos
-  if (m.startsWith("video/") || m.startsWith("audio/")) return "file";
-  if (/\.(mp4|webm|m4v|mov|mkv)$/.test(path)) return "file";
+  if (m === "video/mp2t" || path.endsWith(".m4s")) return null; // segmentos isolados
+  
+  // Trata arquivos de mídia diretos
+  if (m.startsWith("video/") || m.startsWith("audio/") || m === "application/octet-stream") {
+    if (/\.(mp4|m4a|webm|m4v|mov|mkv)$/.test(path) || url.includes(".fbcdn.net/") || url.includes(".cdninstagram.com/")) {
+      return "file";
+    }
+  }
+  
+  if (/\.(mp4|webm|m4v|mov|mkv|m4a)$/.test(path)) return "file";
   return null;
 }
 
@@ -117,4 +143,51 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   chrome.storage.session.remove([vKey(tabId), mKey(tabId)]);
 });
 
+// Injeta o Referer do TikTok automaticamente para evitar HTTP 403 nas CDNs
+// Registra/atualiza as regras do DeclarativeNetRequest para contornar proteções de CDN (TikTok, etc.)
+async function setupNetRules() {
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [1001],
+    addRules: [
+      {
+        id: 1001,
+        priority: 1,
+        action: {
+          type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+          requestHeaders: [
+            {
+              header: "Referer",
+              operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+              value: "https://www.tiktok.com/",
+            },
+            {
+              header: "Origin",
+              operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+              value: "https://www.tiktok.com",
+            },
+          ],
+        },
+        condition: {
+          urlFilter: "*",
+          requestDomains: [
+            "tiktok.com",          // <-- Crucial: seu vídeo vem de v16-webapp-prime.tiktok.com
+            "tiktokcdn.com",
+            "tiktokcdn-us.com",
+            "byteoversea.com",
+            "ibytedtos.com",
+            "muscdn.com",
+          ],
+          resourceTypes: [
+            chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
+            chrome.declarativeNetRequest.ResourceType.MEDIA,
+            chrome.declarativeNetRequest.ResourceType.OTHER,
+          ],
+        },
+      },
+    ],
+  });
+  console.log("[VideoGrabber] Regras de cabeçalho do TikTok ativadas.");
+}
 
+chrome.runtime.onInstalled.addListener(setupNetRules);
+setupNetRules();

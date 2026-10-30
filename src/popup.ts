@@ -25,7 +25,7 @@ type Entry =
 // ---------- utilidades ----------
 
 function fmtTime(s: number) {
-  if (!s) return "?";
+  if (!s || isNaN(s)) return "?";
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60).toString().padStart(2, "0");
   return `${m}:${sec}`;
@@ -42,6 +42,11 @@ function safeTitle() {
 }
 
 function fileName(m: MediaInfo) {
+  const cleanTitle = safeTitle();
+  const ext = m.mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "mp4";
+  if (cleanTitle && cleanTitle !== "video") {
+    return `${cleanTitle}.${ext}`;
+  }
   let base = "";
   try {
     base = decodeURIComponent(new URL(m.url).pathname.split("/").pop() || "");
@@ -50,7 +55,6 @@ function fileName(m: MediaInfo) {
   }
   base = base.replace(/[\\/:*?"<>|]/g, "_");
   if (/\.[a-z0-9]{2,4}$/i.test(base)) return base;
-  const ext = m.mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "mp4";
   return `video.${ext}`;
 }
 
@@ -141,15 +145,21 @@ function renderMedia(m: MediaInfo, s: State, simple: boolean, extra?: string): H
   const el = box();
   const title = document.createElement("b");
 
+  // Fallback de duração: se o probe falhar (ex: CORS/403), usa a duração do <video> ativo na página
+  const fallbackDuration = referenceDurations(s.videos)[0] || 0;
+  const durationSec = probe?.duration || fallbackDuration;
+  const durText = durationSec ? ` • ${fmtTime(durationSec)}` : "";
+  const shortTitle = tabTitle ? `${tabTitle.slice(0, 45)}${tabTitle.length > 45 ? "..." : ""}` : "Arquivo de mídia";
+
   if (simple) {
     title.textContent =
       m.kind === "hls"
-        ? `Vídeo (HLS)${info?.resolution ? ` • ${info.resolution}` : ""}`
-        : `Arquivo de mídia • ${fmtSize(m.size)}${probe?.duration ? ` • ${fmtTime(probe.duration)}` : ""}`;
+        ? `${shortTitle} (HLS)${info?.resolution ? ` • ${info.resolution}` : ""}${durText}`
+        : `${shortTitle} • ${fmtSize(m.size)}${durText}`;
   } else {
     const kindLabel = { file: "arquivo", hls: "stream HLS", dash: "stream DASH" }[m.kind];
     const role = m.kind === "hls" && roleLabel(info) ? ` • ${roleLabel(info)}` : "";
-    title.textContent = `${kindLabel} • ${m.mime || "?"} • ${fmtSize(m.size)}${role}${m.kind === "file" ? probeLabel(probe) : ""}`;
+    title.textContent = `${kindLabel} • ${m.mime || "?"} • ${fmtSize(m.size)}${role}${m.kind === "file" ? (probe ? probeLabel(probe) : durText) : ""}`;
   }
   el.append(title);
 
@@ -177,16 +187,7 @@ function renderMedia(m: MediaInfo, s: State, simple: boolean, extra?: string): H
     actions.append(btn("Baixar (em breve)", () => {}, true));
   } else {
     actions.append(
-      btn("Baixar", async () => {
-        if (m.kind === "file" && !s.dir) {
-          try {
-            await chrome.downloads.download({ url: m.url, filename: fileName(m) });
-            status.textContent = "Download iniciado";
-          } catch (e) {
-            status.textContent = "Erro: " + (e as Error).message;
-          }
-          return;
-        }
+      btn("Baixar", () => {
         openDownload({ url: m.url, kind: m.kind, name: fileName(m) });
       })
     );
@@ -225,11 +226,21 @@ function renderPair(e: Extract<Entry, { t: "pair" }>): HTMLElement {
   const el = box();
   const title = document.createElement("b");
   const res = e.pv.width && e.pv.height ? `${e.pv.width}x${e.pv.height} • ` : "";
-  title.textContent = `Vídeo + áudio • ${res}${fmtTime(e.pv.duration)}`;
+  const shortTitle = tabTitle ? `${tabTitle.slice(0, 45)} • ` : "Vídeo + áudio • ";
+  title.textContent = `${shortTitle}${res}${fmtTime(e.pv.duration)}`;
 
   const actions = document.createElement("div");
   actions.style.marginTop = "6px";
-  actions.append(btn("Baixar", () => openDownload({ url: e.v.url, url2: e.a.url, kind: "merge", name: `${safeTitle()}.mp4` })));
+  actions.append(
+    btn("Baixar", () => {
+      openDownload({
+        url: e.v.url,
+        url2: e.a.url,
+        kind: "merge",
+        name: `${safeTitle()}.mp4`,
+      });
+    })
+  );
 
   el.append(title, actions);
   return el;
@@ -249,7 +260,6 @@ function renderVideo(v: VideoInfo): HTMLElement {
 
 // ---------- lógica do modo simples ----------
 
-// <video> de referência: o que está tocando e visível; senão, o que toca; senão, o visível
 function referenceDurations(videos: VideoInfo[]): number[] {
   const withDur = videos.filter((v) => v.duration > 0);
   const tiers = [
@@ -265,7 +275,6 @@ function buildEntries(s: State): { entries: Entry[]; hidden: number } {
   const entries: Entry[] = [];
   let hidden = 0;
 
-  // HLS: esconde playlists que pertencem a uma master já detectada
   const children = new Set<string>();
   for (const m of s.media) {
     const info = s.infos.get(m.url);
@@ -276,7 +285,6 @@ function buildEntries(s: State): { entries: Entry[]; hidden: number } {
     entries.push({ t: "media", m, rank: s.infos.get(m.url)?.role === "master" ? 0 : 1, ts: m.ts });
   }
 
-  // arquivos: filtra pelo vídeo que está na tela e junta vídeo + áudio
   const refs = referenceDurations(s.videos);
   const vids: MediaInfo[] = [];
   const auds: MediaInfo[] = [];

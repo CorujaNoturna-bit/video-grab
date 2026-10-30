@@ -20,6 +20,57 @@ function describe(v: HTMLVideoElement): VideoInfo {
   };
 }
 
+export interface VideoItem {
+  id: string;
+  url: string;
+  title: string;
+  duration?: number; // em segundos
+  size?: number;     // em bytes
+}
+
+export function detectTikTokVideos(): VideoItem[] {
+  const items: VideoItem[] = [];
+
+  const scriptTag = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
+  if (scriptTag?.textContent) {
+    try {
+      const data = JSON.parse(scriptTag.textContent);
+      const detail = data['__DEFAULT_SCOPE__']?.['webapp.video-detail']?.itemInfo?.itemStruct;
+
+      if (detail?.video?.playAddr) {
+        items.push({
+          id: detail.id,
+          url: detail.video.playAddr,
+          title: detail.desc || `TikTok por @${detail.author?.uniqueId || 'video'}`,
+          duration: detail.video.duration || 0 // vem em segundos
+        });
+        return items;
+      }
+    } catch (e) {
+      console.warn('Erro ao extrair JSON do TikTok:', e);
+    }
+  }
+
+  const videoElements = document.querySelectorAll<HTMLVideoElement>('video');
+  videoElements.forEach((video, index) => {
+    const src = video.currentSrc || video.src;
+    if (src && !src.startsWith('blob:')) {
+      // Tenta obter o texto da legenda na interface atual
+      const descriptionEl = document.querySelector('h1[data-e2e="browse-video-desc"], [data-e2e="user-post-item-desc"]');
+      const pageTitle = descriptionEl?.textContent?.trim() || document.title;
+
+      items.push({
+        id: `tt-${index}`,
+        url: src,
+        title: pageTitle.replace(/[\/\\?%*:|"<>]/g, '_').slice(0, 50),
+        duration: Math.round(video.duration || 0)
+      });
+    }
+  });
+
+  return items;
+}
+
 let last = "[]";
 
 function scan() {
@@ -47,7 +98,6 @@ new MutationObserver(schedule).observe(document.documentElement, {
   attributeFilter: ["src"],
 });
 
-// eventos de mídia não "borbulham", então usamos captura
 for (const ev of ["loadedmetadata", "durationchange", "play", "playing", "pause", "ended"]) {
   document.addEventListener(ev, schedule, true);
 }
