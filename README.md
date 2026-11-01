@@ -9,7 +9,7 @@ A ideia do projeto é facilitar o download de conteúdos disponíveis na web, re
 - **Download de vídeos:** Identifica e permite baixar arquivos em formatos como MP4 e WebM.
 - **Suporte a HLS:** Permite baixar vídeos transmitidos em partes (`.m3u8`), reunindo os segmentos em um único arquivo.
 - **Áudio e vídeo juntos:** Combina automaticamente faixas de áudio e vídeo em um único MP4 usando FFmpeg.
-- **Compatibilidade com plataformas:** Possui suporte a plataformas como TikTok, incluindo tratamento de requisições que retornam erros HTTP 403.
+- **Compatibilidade com plataformas:** Possui suporte com diversas plataformas.
 - **Informações do vídeo:** Exibe dados como duração, resolução, formato e tamanho estimado antes do download.
 - **Downloads alternativos:** Caso não seja possível combinar o áudio e o vídeo, a extensão salva os arquivos separadamente.
 - **Escolha de destino:** Permite selecionar uma pasta para salvar os downloads ou utilizar a pasta padrão do navegador.
